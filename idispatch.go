@@ -1,6 +1,7 @@
 package ole
 
 import (
+	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -208,9 +209,11 @@ func invoke(disp *IDispatch, dispid int32, dispatch int16, params ...interface{}
 		}
 	}
 	for _, varg := range vargs {
+
 		if varg.VT == VT_BSTR && varg.Val != 0 {
 			SysFreeString(((*int16)(unsafe.Pointer(uintptr(varg.Val)))))
 		}
+
 		/*
 			if varg.VT == (VT_BSTR|VT_BYREF) && varg.Val != 0 {
 				*(params[n].(*string)) = UTF16PtrToString((*uint16)(unsafe.Pointer(uintptr(varg.Val))))
@@ -219,5 +222,8 @@ func invoke(disp *IDispatch, dispid int32, dispatch int16, params ...interface{}
 			}
 		*/
 	}
+
+	runtime.SetFinalizer(result, VariantClear)
+
 	return
 }
