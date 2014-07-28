@@ -39,6 +39,14 @@ func (v *IUnknown) Release() int32 {
 	return release(v)
 }
 
+func (v *IUnknown) ReleaseAll() int32 {
+	x := int32(1)
+	for x > 0 {
+		x = release(v)
+	}
+	return x
+}
+
 func queryInterface(unk *IUnknown, iid *GUID) (disp *IDispatch, err error) {
 	hr, _, _ := syscall.Syscall(
 		unk.lpVtbl.pQueryInterface,

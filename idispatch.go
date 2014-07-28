@@ -1,7 +1,16 @@
 package ole
 
+// #cgo LDFLAGS: -loleaut32 -lOle32 -lcomctl32
+// #include "windows.h"
+// #include "OleAuto.h"
+// #include "ObjIdl.h"
+// #include "igit.h"
+import "C"
+
 import (
+	"fmt"
 	"runtime"
+	"runtime/debug"
 	"syscall"
 	"unsafe"
 )
@@ -36,6 +45,24 @@ func (v *IDispatch) AddRef() int32 {
 
 func (v *IDispatch) Release() int32 {
 	return release((*IUnknown)(unsafe.Pointer(v)))
+	//x := release((*IUnknown)(unsafe.Pointer(v)))
+	//if x != 0 {
+	//	fmt.Println(x)
+	//	debug.PrintStack()
+	//}
+	//return x
+}
+
+func (v *IDispatch) ReleaseAll() int32 {
+	x := int32(1)
+	for x > 0 {
+		x = release((*IUnknown)(unsafe.Pointer(v)))
+	}
+	if x != 0 {
+		fmt.Println(x)
+		debug.PrintStack()
+	}
+	return x
 }
 
 func (v *IDispatch) GetIDsOfName(names []string) (dispid []int32, err error) {
@@ -223,7 +250,46 @@ func invoke(disp *IDispatch, dispid int32, dispatch int16, params ...interface{}
 		*/
 	}
 
-	runtime.SetFinalizer(result, VariantClear)
+	if result.VT == VT_DISPATCH && false {
+		C.initGit()
+
+		idispRes := (*IDispatch)(unsafe.Pointer(uintptr(result.Val)))
+
+		cookie := C.registerInterfaceToGit((*C.IDispatch)(unsafe.Pointer(idispRes)))
+
+		VariantClear(result)
+
+		//VariantInit(result)
+
+		result = &VARIANT{VT_UI8, 0, 0, 0, int64(uint32(cookie)), 0}
+
+		runtime.SetFinalizer(result, func(f *VARIANT) {
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+
+			//var idis *IDispatch
+			//C.getIdispatchFromGlobal(cookie, (*unsafe.Pointer)(unsafe.Pointer(&idis)))
+
+			//ref_count := idis.AddRef()
+			//for ref_count > 1 {
+			//	ref_count = idis.Release()
+			//}
+
+			//fmt.Println("finalizing ref_count : ", ref_count)
+			//result_copy.Val = int64(uintptr(unsafe.Pointer(idis)))
+			//VariantClear(result_copy)
+
+			C.revokeInterfaceFromGlobal(cookie)
+		})
+
+	} else {
+		runtime.SetFinalizer(result, VariantClear)
+	}
+
+	//runtime.SetFinalizer(result, func(f *VARIANT) {
+	//	// C.VariantClear((*C.struct_tagVARIANT)(unsafe.Pointer(f)))
+	//	VariantClear(f)
+	//})
 
 	return
 }

@@ -1,7 +1,15 @@
 package ole
 
+// #cgo LDFLAGS: -loleaut32 -lOle32 -lcomctl32
+// #include "windows.h"
+// #include "OleAuto.h"
+// #include "ObjIdl.h"
+// #include "igit.h"
+import "C"
+
 import (
 	"fmt"
+	"runtime"
 	"syscall"
 	"unicode/utf16"
 	"unsafe"
@@ -77,7 +85,25 @@ func (v *VARIANT) ToIUnknown() *IUnknown {
 }
 
 func (v *VARIANT) ToIDispatch() *IDispatch {
-	return (*IDispatch)(unsafe.Pointer(uintptr(v.Val)))
+	if v.VT == VT_UI8 {
+		var idis *IDispatch
+		C.getIdispatchFromGlobal(C.DWORD(uint32(v.Val)), (*unsafe.Pointer)(unsafe.Pointer(&idis)))
+		//fmt.Println("to IDispatch getIdispatchFromGlobal for ", C.DWORD(uint32(v.Val)), idis)
+		return idis
+	} else {
+		// incorrect :(
+		res := (*IDispatch)(unsafe.Pointer(uintptr(v.Val)))
+		//res := &IDispatch{lpVtbl: resx.lpVtbl}
+		res.AddRef()
+		runtime.SetFinalizer(res, ReleaseIDispatch)
+		return (*IDispatch)(unsafe.Pointer(uintptr(v.Val)))
+	}
+}
+
+func ReleaseIDispatch(idis *IDispatch) error {
+	fmt.Println("releaseing finalizer for: ", idis)
+	idis.Release()
+	return nil
 }
 
 func (v *VARIANT) ToArray() *SafeArrayConversion {
@@ -87,6 +113,10 @@ func (v *VARIANT) ToArray() *SafeArrayConversion {
 
 func (v *VARIANT) ToString() string {
 	return UTF16PtrToString(*(**uint16)(unsafe.Pointer(&v.Val)))
+}
+
+func (v *VARIANT) Clear() error {
+	return VariantClear(v)
 }
 
 // Returns v's value based on its VALTYPE.
